@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
+import java.util.Optional;
 
 import static com.local.url.util.URLShortenerLogger.logError;
 
@@ -61,6 +62,22 @@ public class UrlService {
             cache.put(shortCode, longUrl); // Cache the new URL mapping
             return savedUrl;
         });
+    }
+
+    public Optional<String> resolveShortCode(String shortCode) {
+        String longUrl = cache.getIfPresent(shortCode);
+
+        if(longUrl != null) {
+            return Optional.of(longUrl);
+        }
+
+        return urlRepository.findByShortCode(shortCode)
+                .filter(UrlStore::isActive)
+                .filter(urlStore -> urlStore.getExpiresAt() == null || urlStore.getExpiresAt().isAfter(Instant.now()))
+                .map(urlStore -> {
+                    cache.put(shortCode, urlStore.getLongUrl());
+                    return urlStore.getLongUrl();
+                });
     }
 
     private boolean isValid(String url) {
